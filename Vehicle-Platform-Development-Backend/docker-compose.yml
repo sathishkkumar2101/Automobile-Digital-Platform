@@ -1,0 +1,562 @@
+services:
+
+  # =========================
+  # PostgreSQL Databases
+  # =========================
+
+  postgres-order:
+    image: postgres:17
+    container_name: postgres-order
+    environment:
+      POSTGRES_DB: order
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - order-data:/var/lib/postgresql/data
+    networks:
+      - vehicle-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d order"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-customer:
+    image: postgres:17
+    container_name: postgres-customer
+    environment:
+      POSTGRES_DB: customer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - customer-data:/var/lib/postgresql/data
+    networks:
+      - vehicle-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d customer"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-dealer:
+    image: postgres:17
+    container_name: postgres-dealer
+    environment:
+      POSTGRES_DB: dealer_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - dealer-data:/var/lib/postgresql/data
+    networks:
+      - vehicle-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dealer_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-vehicle:
+    image: postgres:17
+    container_name: postgres-vehicle
+    environment:
+      POSTGRES_DB: vehicle_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - vehicle-data:/var/lib/postgresql/data
+    networks:
+      - vehicle-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vehicle_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-service-appointment:
+    image: postgres:17
+    container_name: postgres-service-appointment
+    environment:
+      POSTGRES_DB: service_appointment
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5437:5432"
+    volumes:
+      - service-appointment-data:/var/lib/postgresql/data
+    networks:
+      - vehicle-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d service_appointment"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-permission:
+    image: postgres:17
+    container_name: postgres-permission
+    environment:
+      POSTGRES_DB: permission_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5438:5432"
+    volumes:
+      - permission-data:/var/lib/postgresql/data
+    networks:
+      - vehicle-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d permission_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-user-role:
+    image: postgres:17
+    container_name: postgres-user-role
+    environment:
+      POSTGRES_DB: user_role_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5439:5432"
+    volumes:
+      - user-role-data:/var/lib/postgresql/data
+    networks:
+      - vehicle-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d user_role_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-messaging:
+    image: postgres:17
+    container_name: postgres-messaging
+    environment:
+      POSTGRES_DB: messaging
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5440:5432"
+    volumes:
+      - messaging-data:/var/lib/postgresql/data
+    networks:
+      - vehicle-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d messaging"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  # =========================
+  # Eureka Server
+  # =========================
+
+  eureka-server:
+    build:
+      context: ./eureka-server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - vehicle-platform-network
+
+
+  # =========================
+  # Microservices
+  # =========================
+
+  order:
+    build:
+      context: ./order
+    container_name: order-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env - see .env.example}
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      postgres-order:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+  customer:
+    build:
+      context: ./customer
+    container_name: customer-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-customer:5432/customer
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      postgres-customer:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+  dealer:
+    build:
+      context: ./dealer
+    container_name: dealer-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-dealer:5432/dealer_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Presented on outbound service-to-service calls (see
+      # FeignSecurityInterceptor) so this service can reach the
+      # /api/internal/** routes that are guarded by the shared secret.
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env - see .env.example}
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      postgres-dealer:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+  vehicle:
+    build:
+      context: ./vehicle
+    container_name: vehicle-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-vehicle:5432/vehicle_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      postgres-vehicle:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+  permission-service:
+    build:
+      context: ./permission-service
+    container_name: permission-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-permission:5432/permission_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      postgres-permission:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+  user-role-service:
+    build:
+      context: ./user-role-service
+    container_name: user-role-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user-role:5432/user_role_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env - see .env.example}
+      JWT_ISSUER: ${JWT_ISSUER:-bmw-vehicle-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-bmw-vehicle-platform-api}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env - see .env.example}
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      postgres-user-role:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+  service-appointment:
+    build:
+      context: ./service-appointment
+    container_name: service-appointment
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-service-appointment:5432/service_appointment
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env - see .env.example}
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      postgres-service-appointment:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+  messaging:
+    build:
+      context: ./messaging
+    container_name: messaging-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-messaging:5432/messaging
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env - see .env.example}
+      JWT_ISSUER: ${JWT_ISSUER:-bmw-vehicle-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-bmw-vehicle-platform-api}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env - see .env.example}
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      postgres-messaging:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+      user-role-service:
+        condition: service_started
+      dealer:
+        condition: service_started
+      customer:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+
+  # =========================
+  # API Gateway
+  # =========================
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env - see .env.example}
+      JWT_ISSUER: ${JWT_ISSUER:-bmw-vehicle-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-bmw-vehicle-platform-api}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env - see .env.example}
+      # Register with the container IP rather than its hostname. The hostname is
+      # the container id, which changes whenever the container is recreated, and
+      # Docker's DNS only knows the *current* one: a stale Eureka entry then
+      # sends the gateway to an address that cannot be resolved, and every
+      # request fails until the old entry ages out.
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+      # Registration cadence. The default first registration takes ~40s, so a
+      # service that lost its entry (eureka restarted, container replaced) was
+      # unroutable for the best part of a minute. Re-register promptly instead.
+      EUREKA_CLIENT_INITIAL_INSTANCE_INFO_REPLICATION_INTERVAL_SECONDS: "5"
+      EUREKA_INSTANCE_REGISTRY_REFRESH_INTERVAL_SECONDS: "10"
+      EUREKA_CLIENT_EUREKA_SERVICE_URL_POLL_INTERVAL_SECONDS: "10"
+      # Renew well inside the expiry window: three renewals are missed before an
+      # entry is dropped, and a dropped entry is re-added within ~5s.
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "10"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "30"
+    depends_on:
+      eureka-server:
+        condition: service_started
+      customer:
+        condition: service_started
+      order:
+        condition: service_started
+      dealer:
+        condition: service_started
+      vehicle:
+        condition: service_started
+      permission-service:
+        condition: service_started
+      user-role-service:
+        condition: service_started
+      service-appointment:
+        condition: service_started
+      messaging:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+
+  # =========================
+  # Frontend
+  # =========================
+
+  frontend:
+    build:
+      context: ../Frontend-main
+    container_name: frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      api-gateway:
+        condition: service_started
+    networks:
+      - vehicle-platform-network
+
+
+# =========================
+# Volumes
+# =========================
+
+volumes:
+  order-data:
+    name: order-data
+
+  customer-data:
+    name: customer-data
+
+  dealer-data:
+    name: dealer-data
+
+  vehicle-data:
+    name: vehicle-data
+
+  service-appointment-data:
+    name: service-appointment-data
+
+  permission-data:
+    name: permission-data
+
+  user-role-data:
+    name: user-role-data
+
+  messaging-data:
+    name: messaging-data
+
+
+# =========================
+# Network
+# =========================
+
+networks:
+  vehicle-platform-network:
+    name: vehicle-platform-network

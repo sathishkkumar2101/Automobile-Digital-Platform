@@ -1,0 +1,10 @@
+{
+  "description": "A premium automotive platform delivering tailored experiences for customers, dealers, and admins with vehicle discovery, inventory, and management tools.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

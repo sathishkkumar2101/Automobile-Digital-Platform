@@ -1,0 +1,154 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Barlow Semi Condensed', sans-serif;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-background: #09090B;
+  --color-foreground: #FAFAFA;
+  --color-card: #141417;
+  --color-card-foreground: #FAFAFA;
+  --color-primary: #FAFAFA;
+  --color-primary-foreground: #09090B;
+  --color-secondary: #1E1E23;
+  --color-secondary-foreground: #A1A1AA;
+  --color-muted: #18181B;
+  --color-muted-foreground: #71717A;
+  --color-accent: #C4A84F;
+  --color-accent-foreground: #09090B;
+  --color-border: #27272A;
+  --color-ring: #C4A84F;
+  --color-destructive: #EF4444;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-info: #3B82F6;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-body);
+  background: #09090B;
+  color: #FAFAFA;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #09090B;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272A;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3F3F46;
+}
+
+/* Custom utilities */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid #C4A84F;
+  outline-offset: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Selection */
+::selection {
+  background: rgba(196, 168, 79, 0.3);
+  color: #FAFAFA;
+}
+
+/* Table striping utility */
+.table-row-hover:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* Smooth transitions */
+.transition-fast {
+  transition: all 150ms ease;
+}
+
+/* Gradient text */
+.gradient-gold {
+  background: linear-gradient(135deg, #C4A84F, #E8D5A3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sidebar animation */
+.sidebar-item {
+  position: relative;
+}
+
+.sidebar-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 0;
+  background: #C4A84F;
+  transition: height 200ms ease;
+}
+
+.sidebar-item.active::before {
+  height: 60%;
+}
+
+/* Card hover */
+.card-hover {
+  transition: border-color 200ms ease, background 200ms ease;
+}
+
+.card-hover:hover {
+  border-color: #3F3F46;
+}
+
+/* Stat change indicators */
+.trend-up { color: #22C55E; }
+.trend-down { color: #EF4444; }
+.trend-neutral { color: #71717A; }

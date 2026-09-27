@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+*.md
+*.cjs
+*.sql
+.figma/make/deploy-preview
+.gitattributes
+.gitignore
